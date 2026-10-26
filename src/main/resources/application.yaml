@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: onclass-capability-service
+  r2dbc:
+    url: r2dbc:mysql://localhost:3306/db_capability
+    username: root
+    password: 03090409
+
+server:
+  port: 8080
