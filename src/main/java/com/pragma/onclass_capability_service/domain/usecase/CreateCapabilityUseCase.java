@@ -1,20 +1,20 @@
 package com.pragma.onclass_capability_service.domain.usecase;
 
-import com.pragma.onclass_capability_service.domain.api.CapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.api.CreateCapabilityServicePort;
 import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
 import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
 import com.pragma.onclass_capability_service.domain.model.Capability;
 import com.pragma.onclass_capability_service.domain.spi.CapabilityPersistencePort;
-import com.pragma.onclass_capability_service.domain.spi.TechnologyValidatorGateway;
+import com.pragma.onclass_capability_service.domain.spi.TechnologyGateway;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 
 @RequiredArgsConstructor
-public class CapabilityUseCase implements CapabilityServicePort {
+public class CreateCapabilityUseCase implements CreateCapabilityServicePort {
 
     private final CapabilityPersistencePort capabilityPersistencePort;
-    private final TechnologyValidatorGateway technologyValidatorGateway;
+    private final TechnologyGateway technologyValidatorGateway;
 
     @Override
     @Transactional

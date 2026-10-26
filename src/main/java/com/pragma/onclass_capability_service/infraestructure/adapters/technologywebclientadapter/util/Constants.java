@@ -1,4 +1,4 @@
-package com.pragma.onclass_capability_service.infraestructure.adapters.technologyvalidatoradapter.util;
+package com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.util;
 
 import lombok.experimental.UtilityClass;
 

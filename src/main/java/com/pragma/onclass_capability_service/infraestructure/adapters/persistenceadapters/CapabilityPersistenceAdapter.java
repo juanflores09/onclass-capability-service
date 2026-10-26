@@ -5,7 +5,8 @@ import com.pragma.onclass_capability_service.domain.spi.CapabilityPersistencePor
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.entity.CapabilityEntity;
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.entity.CapabilityTechnologyEntity;
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.repository.SpringDataCapabilityTechnologyRepository;
-import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.repository.SpringDataTechnologyRepository;
+import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.repository.SpringDataCapabilityRepository;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityWithCountDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
@@ -17,7 +18,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
 
-    private final SpringDataTechnologyRepository repository;
+    private final SpringDataCapabilityRepository repository;
     private final SpringDataCapabilityTechnologyRepository capabilityTechnologyRepository;
 
     @Override
@@ -55,5 +56,15 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     @Override
     public Mono<Boolean> existsByName(String name) {
         return repository.existsByName(name);
+    }
+
+    @Override
+    public Flux<CapabilityWithCountDTO> findAllPagedAndSorted(String sortBy, String direction, int limit, long offset) {
+        return repository.findAllPagedAndSorted(sortBy, direction, limit, offset);
+    }
+
+    @Override
+    public Flux<Long> findByCapabilityId(Long capabilityId) {
+        return capabilityTechnologyRepository.findByCapabilityId(capabilityId);
     }
 }

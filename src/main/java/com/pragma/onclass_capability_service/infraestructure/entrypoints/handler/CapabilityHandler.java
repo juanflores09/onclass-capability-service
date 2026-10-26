@@ -1,6 +1,7 @@
 package com.pragma.onclass_capability_service.infraestructure.entrypoints.handler;
 
-import com.pragma.onclass_capability_service.domain.api.CapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.api.CreateCapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServicePort;
 import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
 import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.ApiResponseDTO;
@@ -31,7 +32,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class CapabilityHandler {
 
-    private final CapabilityServicePort capabilityServicePort;
+    private final CreateCapabilityServicePort capabilityServicePort;
+    private final FindCapabilitiesServicePort findCapabilitiesServicePort;
     private final CapabilityMapper technologyMapper;
     private final Validator validator;
 
@@ -63,6 +65,54 @@ public class CapabilityHandler {
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(saved))
                 .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNull(messageId)))
+                .onErrorResume(BusinessException.class, ex -> buildErrorResponse(
+                        HttpStatus.BAD_REQUEST,
+                        messageId,
+                        ex.getTechnicalMessage(),
+                        List.of(ErrorDTO.builder()
+                                .code(ex.getTechnicalMessage().getCode())
+                                .message(ex.getMessage())
+                                .build())
+                ))
+                .onErrorResume(ex -> {
+                    log.error("Unexpected error occurred for messageId: {}", messageId, ex);
+                    return buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            messageId,
+                            TechnicalMessage.INTERNAL_ERROR,
+                            List.of(ErrorDTO.builder()
+                                    .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                    .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                    .build())
+                    );
+                });
+    }
+
+    public Mono<ServerResponse> listCapabilities(ServerRequest request) {
+
+        String messageId = request.headers().firstHeader(Constants.X_MESSAGE_ID);
+
+        // Get the query params with default values
+        int page = request.queryParam("page")
+                .map(Integer::parseInt)
+                .orElse(0);
+
+        int size = request.queryParam("size")
+                .map(Integer::parseInt)
+                .orElse(10);
+
+        String sortBy = request.queryParam("sortBy")
+                .orElse("name");
+
+        String direction = request.queryParam("direction")
+                .orElse("ASC");
+
+        return findCapabilitiesServicePort.listCapabilities(page, size, sortBy, direction)
+                .collectList()
+                .flatMap(capabilities -> ServerResponse
+                        .status(HttpStatus.OK)
+                        .bodyValue(capabilities))
+                .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNullElse(messageId, "")))
                 .onErrorResume(BusinessException.class, ex -> buildErrorResponse(
                         HttpStatus.BAD_REQUEST,
                         messageId,

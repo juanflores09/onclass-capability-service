@@ -1,9 +1,11 @@
 package com.pragma.onclass_capability_service.application.config;
 
-import com.pragma.onclass_capability_service.domain.api.CapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.api.CreateCapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServicePort;
 import com.pragma.onclass_capability_service.domain.spi.CapabilityPersistencePort;
-import com.pragma.onclass_capability_service.domain.spi.TechnologyValidatorGateway;
-import com.pragma.onclass_capability_service.domain.usecase.CapabilityUseCase;
+import com.pragma.onclass_capability_service.domain.spi.TechnologyGateway;
+import com.pragma.onclass_capability_service.domain.usecase.CreateCapabilityUseCase;
+import com.pragma.onclass_capability_service.domain.usecase.ListCapabilitiesUseCase;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,9 +13,16 @@ import org.springframework.context.annotation.Configuration;
 public class UseCaseConfig {
 
     @Bean
-    public CapabilityServicePort technologyServicePort(
+    public CreateCapabilityServicePort technologyServicePort(
             CapabilityPersistencePort capabilityPersistencePort,
-            TechnologyValidatorGateway technologyValidatorGateway){
-        return new CapabilityUseCase(capabilityPersistencePort, technologyValidatorGateway);
+            TechnologyGateway technologyValidatorGateway){
+        return new CreateCapabilityUseCase(capabilityPersistencePort, technologyValidatorGateway);
+    }
+
+    @Bean
+    public FindCapabilitiesServicePort findCapabilitiesServicePort(
+            CapabilityPersistencePort capabilityPersistencePort,
+            TechnologyGateway technologyValidatorGateway){
+        return new ListCapabilitiesUseCase(capabilityPersistencePort, technologyValidatorGateway);
     }
 }
