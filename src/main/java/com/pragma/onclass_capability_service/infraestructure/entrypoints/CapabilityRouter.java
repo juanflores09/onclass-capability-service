@@ -15,6 +15,7 @@ public class CapabilityRouter {
         return route()
                 .POST("/api/v1/capabilities", handler::createTechnology)
                 .GET("/api/v1/capabilities", handler::listCapabilities)
+                .POST("/api/v1/capabilities/validate", handler::validateCapabilities)
                 .build();
     }
 }

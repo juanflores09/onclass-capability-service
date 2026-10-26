@@ -5,6 +5,7 @@ import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServiceP
 import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
 import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.ApiResponseDTO;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityIdsRequestDTO;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityRequestDTO;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.mapper.CapabilityMapper;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.util.Constants;
@@ -58,7 +59,7 @@ public class CapabilityHandler {
                     return Mono.just(dto);
                 })
                 .map(technologyMapper::capabilityDtoToCapability)
-                .flatMap(capability -> capabilityServicePort.createTechnology(capability,messageId))
+                .flatMap(capability -> capabilityServicePort.createCapability(capability,messageId))
                 .doOnSuccess(saved ->log.info("Capability successfully created  with messageId: {}", messageId))
                 .flatMap(saved -> ServerResponse
                         .status(HttpStatus.CREATED)
@@ -75,7 +76,7 @@ public class CapabilityHandler {
                                 .build())
                 ))
                 .onErrorResume(ex -> {
-                    log.error("Unexpected error occurred for messageId: {}", messageId, ex);
+                    log.error("[createTechnology] Unexpected error occurred for messageId: {}", messageId, ex);
                     return buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
                             messageId,
@@ -113,6 +114,49 @@ public class CapabilityHandler {
                         .status(HttpStatus.OK)
                         .bodyValue(capabilities))
                 .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNullElse(messageId, "")))
+                .onErrorResume(BusinessException.class, ex -> buildErrorResponse(
+                        HttpStatus.BAD_REQUEST,
+                        messageId,
+                        ex.getTechnicalMessage(),
+                        List.of(ErrorDTO.builder()
+                                .code(ex.getTechnicalMessage().getCode())
+                                .message(ex.getMessage())
+                                .build())
+                ))
+                .onErrorResume(ex -> {
+                    log.error("[listCapabilities] Unexpected error occurred for messageId: {}", messageId, ex);
+                    return buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            messageId,
+                            TechnicalMessage.INTERNAL_ERROR,
+                            List.of(ErrorDTO.builder()
+                                    .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                    .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                    .build())
+                    );
+                });
+    }
+
+    public Mono<ServerResponse> validateCapabilities(ServerRequest request) {
+
+        String messageId = request.headers().firstHeader(Constants.X_MESSAGE_ID);
+
+        return request.bodyToMono(CapabilityIdsRequestDTO.class)
+                .flatMap(dto -> {
+
+                    Set<ConstraintViolation<CapabilityIdsRequestDTO>> violations = validator.validate(dto);
+                    if (!violations.isEmpty()) {
+                        String errorMessage = violations.iterator().next().getMessage();
+                        return Mono.error(new BusinessException(errorMessage, TechnicalMessage.INVALID_PARAMETERS));
+                    }
+                    return Mono.just(dto);
+                })
+                .flatMap(dto -> findCapabilitiesServicePort.areAllCapabilitiesExist(dto.ids())
+                )
+                .flatMap(exists -> ServerResponse
+                        .status(HttpStatus.OK)
+                        .bodyValue(exists))
+                .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNull(messageId)))
                 .onErrorResume(BusinessException.class, ex -> buildErrorResponse(
                         HttpStatus.BAD_REQUEST,
                         messageId,

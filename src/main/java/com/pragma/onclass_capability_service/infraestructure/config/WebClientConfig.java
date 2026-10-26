@@ -10,7 +10,7 @@ public class WebClientConfig {
     @Bean
     public WebClient technologyWebClient() {
         return WebClient.builder()
-                .baseUrl("http://localhost:8081") // URL de tu onclass-technology-service
+                .baseUrl("http://localhost:8081")
                 .defaultHeader("Content-Type", "application/json")
                 .build();
     }

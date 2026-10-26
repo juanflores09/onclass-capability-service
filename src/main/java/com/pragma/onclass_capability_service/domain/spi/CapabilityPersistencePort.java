@@ -5,6 +5,8 @@ import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.Cap
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 public interface CapabilityPersistencePort {
 
     Mono<Capability> save(Capability capability);
@@ -12,4 +14,5 @@ public interface CapabilityPersistencePort {
     Flux<CapabilityWithCountDTO> findAllPagedAndSorted(String sortBy, String direction, int limit, long offset);
 
     Flux<Long> findByCapabilityId(Long capabilityId);
+    Mono<Boolean> areAllCapabilitiesExist(List<Long> ids);
 }

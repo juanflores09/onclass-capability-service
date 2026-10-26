@@ -9,12 +9,18 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Collections;
+import java.util.List;
 
 @RequiredArgsConstructor
 public class ListCapabilitiesUseCase implements FindCapabilitiesServicePort {
 
     private final CapabilityPersistencePort capabilityPersistencePort;
     private final TechnologyGateway technologyGateway;
+
+    @Override
+    public Mono<Boolean> areAllCapabilitiesExist(List<Long> ids) {
+        return capabilityPersistencePort.areAllCapabilitiesExist(ids);
+    }
 
     @Override
     public Flux<CapabilityResponseDTO> listCapabilities(int page, int size, String sortBy, String direction) {

@@ -5,5 +5,5 @@ import reactor.core.publisher.Mono;
 
 public interface CreateCapabilityServicePort {
 
-    Mono<Capability> createTechnology(Capability capability, String messageId);
+    Mono<Capability> createCapability(Capability capability, String messageId);
 }

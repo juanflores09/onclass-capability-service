@@ -18,7 +18,7 @@ public class CreateCapabilityUseCase implements CreateCapabilityServicePort {
 
     @Override
     @Transactional
-    public Mono<Capability> createTechnology(Capability capability, String messageId) {
+    public Mono<Capability> createCapability(Capability capability, String messageId) {
 
         return capabilityPersistencePort.existsByName(capability.getName())
                 .filter(exits -> !exits)

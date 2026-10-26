@@ -67,4 +67,10 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     public Flux<Long> findByCapabilityId(Long capabilityId) {
         return capabilityTechnologyRepository.findByCapabilityId(capabilityId);
     }
+
+    @Override
+    public Mono<Boolean> areAllCapabilitiesExist(List<Long> ids) {
+        return repository.countByIdIn(ids)
+                .map(count -> count == ids.size());
+    }
 }
