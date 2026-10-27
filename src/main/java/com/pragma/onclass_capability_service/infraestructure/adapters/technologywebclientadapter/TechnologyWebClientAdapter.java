@@ -3,10 +3,10 @@ package com.pragma.onclass_capability_service.infraestructure.adapters.technolog
 import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
 import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
 import com.pragma.onclass_capability_service.domain.exceptions.TechnicalException;
+import com.pragma.onclass_capability_service.domain.model.Technology;
 import com.pragma.onclass_capability_service.domain.spi.TechnologyGateway;
 import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.TechnologyIdsRequestDTO;
 import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.util.Constants;
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.TechnologyResponseDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -45,7 +45,7 @@ public class TechnologyWebClientAdapter implements TechnologyGateway {
     }
 
     @Override
-    public Flux<TechnologyResponseDTO> getTechnologiesByIds(List<Long> ids) {
+    public Flux<Technology> getTechnologiesByIds(List<Long> ids) {
 
         TechnologyIdsRequestDTO requestBody = new TechnologyIdsRequestDTO(ids);
 
@@ -57,7 +57,7 @@ public class TechnologyWebClientAdapter implements TechnologyGateway {
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, response -> buildErrorResponse(response, TechnicalMessage.INVALID_PARAMETERS))
                 .onStatus(HttpStatusCode::is5xxServerError, response -> buildErrorResponse(response, TechnicalMessage.INTERNAL_ERROR_IN_ADAPTERS))
-                .bodyToFlux(TechnologyResponseDTO.class);
+                .bodyToFlux(Technology.class);
     }
 
     private Mono<Throwable> buildErrorResponse(ClientResponse response, TechnicalMessage technicalMessage) {

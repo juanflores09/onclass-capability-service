@@ -14,5 +14,5 @@ public class Capability {
     private Long id;
     private String name;
     private String description;
-    private List<Long> technologies;
+    private List<Technology> technologies;
 }

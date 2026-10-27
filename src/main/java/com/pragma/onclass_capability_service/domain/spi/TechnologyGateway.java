@@ -1,6 +1,6 @@
 package com.pragma.onclass_capability_service.domain.spi;
 
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.TechnologyResponseDTO;
+import com.pragma.onclass_capability_service.domain.model.Technology;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -10,5 +10,5 @@ public interface TechnologyGateway {
 
     Mono<Boolean> validateTechnologiesExist(List<Long> ids, String messageId);
 
-    Flux<TechnologyResponseDTO> getTechnologiesByIds(List<Long> technologyIds);
+    Flux<Technology> getTechnologiesByIds(List<Long> technologyIds);
 }

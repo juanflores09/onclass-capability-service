@@ -13,9 +13,10 @@ public class CapabilityRouter {
     @Bean
     public RouterFunction<ServerResponse> technologyRoutes(CapabilityHandler handler) {
         return route()
-                .POST("/api/v1/capabilities", handler::createTechnology)
+                .POST("/api/v1/capabilities", handler::createCapability)
                 .GET("/api/v1/capabilities", handler::listCapabilities)
                 .POST("/api/v1/capabilities/validate", handler::validateCapabilities)
+                .POST("/api/v1/capabilities/find", handler::findCapabilitiesByIds)
                 .build();
     }
 }

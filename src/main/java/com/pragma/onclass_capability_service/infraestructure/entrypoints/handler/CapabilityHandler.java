@@ -4,10 +4,9 @@ import com.pragma.onclass_capability_service.domain.api.CreateCapabilityServiceP
 import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServicePort;
 import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
 import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.ApiResponseDTO;
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityIdsRequestDTO;
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityRequestDTO;
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.mapper.CapabilityMapper;
+import com.pragma.onclass_capability_service.domain.model.Capability;
+import com.pragma.onclass_capability_service.domain.model.Technology;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.*;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.util.Constants;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.util.ErrorDTO;
 import jakarta.validation.ConstraintViolation;
@@ -23,10 +22,7 @@ import reactor.core.publisher.Mono;
 import reactor.util.context.Context;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @Slf4j
 @Component
@@ -35,10 +31,9 @@ public class CapabilityHandler {
 
     private final CreateCapabilityServicePort capabilityServicePort;
     private final FindCapabilitiesServicePort findCapabilitiesServicePort;
-    private final CapabilityMapper technologyMapper;
     private final Validator validator;
 
-    public Mono<ServerResponse> createTechnology(ServerRequest request) {
+    public Mono<ServerResponse> createCapability(ServerRequest request) {
 
         String messageId = request.headers().firstHeader(Constants.X_MESSAGE_ID);
 
@@ -58,8 +53,23 @@ public class CapabilityHandler {
                     }
                     return Mono.just(dto);
                 })
-                .map(technologyMapper::capabilityDtoToCapability)
+                .map(dto -> {
+                    Capability capability = new Capability();
+                    capability.setName(dto.name());
+                    capability.setDescription(dto.description());
+                    capability.setTechnologies(dto.technologies().stream()
+                            .map(Technology::new)
+                            .toList());
+                    return capability;
+                })
                 .flatMap(capability -> capabilityServicePort.createCapability(capability,messageId))
+                .map(capability ->
+                        new CapabilityResponseDTO(
+                                capability.getId(),
+                                capability.getName(),
+                                capability.getDescription()
+                        )
+                )
                 .doOnSuccess(saved ->log.info("Capability successfully created  with messageId: {}", messageId))
                 .flatMap(saved -> ServerResponse
                         .status(HttpStatus.CREATED)
@@ -109,6 +119,16 @@ public class CapabilityHandler {
                 .orElse("ASC");
 
         return findCapabilitiesServicePort.listCapabilities(page, size, sortBy, direction)
+                .map(capability ->
+                     new CapabilityResponseDTO(
+                            capability.getId(),
+                            capability.getName(),
+                            capability.getDescription(),
+                            capability.getTechnologies().stream()
+                                    .map(x -> new TechnologyResponseDTO(x.getId(), x.getName()))
+                                    .toList()
+                    )
+                )
                 .collectList()
                 .flatMap(capabilities -> ServerResponse
                         .status(HttpStatus.OK)
@@ -168,6 +188,50 @@ public class CapabilityHandler {
                 ))
                 .onErrorResume(ex -> {
                     log.error("Unexpected error occurred for messageId: {}", messageId, ex);
+                    return buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            messageId,
+                            TechnicalMessage.INTERNAL_ERROR,
+                            List.of(ErrorDTO.builder()
+                                    .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                    .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                    .build())
+                    );
+                });
+    }
+
+    public Mono<ServerResponse> findCapabilitiesByIds(ServerRequest request) {
+
+        String messageId = request.headers().firstHeader(Constants.X_MESSAGE_ID);
+
+        return request.bodyToMono(CapabilityIdsRequestDTO.class)
+                .flatMap(dto -> {
+
+                    Set<ConstraintViolation<CapabilityIdsRequestDTO>> violations = validator.validate(dto);
+                    if (!violations.isEmpty()) {
+                        String errorMessage = violations.iterator().next().getMessage();
+                        return Mono.error(new BusinessException(errorMessage, TechnicalMessage.INVALID_PARAMETERS));
+                    }
+                    return Mono.just(dto);
+                })
+                .flatMap(dto -> findCapabilitiesServicePort.findByIdIn(dto.ids())
+                        .collectList()
+                )
+                .flatMap(capabilities -> ServerResponse
+                        .status(HttpStatus.OK)
+                        .bodyValue(capabilities))
+                .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNull(messageId)))
+                .onErrorResume(BusinessException.class, ex -> buildErrorResponse(
+                        HttpStatus.BAD_REQUEST,
+                        messageId,
+                        ex.getTechnicalMessage(),
+                        List.of(ErrorDTO.builder()
+                                .code(ex.getTechnicalMessage().getCode())
+                                .message(ex.getMessage())
+                                .build())
+                ))
+                .onErrorResume(ex -> {
+                    log.error("[findTechnologiesByIds] Unexpected error occurred for messageId: {}", messageId, ex);
                     return buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
                             messageId,

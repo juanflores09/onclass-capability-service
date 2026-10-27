@@ -1,17 +1,19 @@
 package com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters;
 
 import com.pragma.onclass_capability_service.domain.model.Capability;
+import com.pragma.onclass_capability_service.domain.model.Technology;
 import com.pragma.onclass_capability_service.domain.spi.CapabilityPersistencePort;
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.entity.CapabilityEntity;
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.entity.CapabilityTechnologyEntity;
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.repository.SpringDataCapabilityTechnologyRepository;
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.repository.SpringDataCapabilityRepository;
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityWithCountDTO;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.mapper.CapabilityMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
 import java.util.List;
 
 @Repository
@@ -20,6 +22,7 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
 
     private final SpringDataCapabilityRepository repository;
     private final SpringDataCapabilityTechnologyRepository capabilityTechnologyRepository;
+    private final CapabilityMapper capabilityMapper;
 
     @Override
     public Mono<Capability> save(Capability capability) {
@@ -30,8 +33,12 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
 
         return repository.save(entity)
                 .flatMap(saved -> {
-                    List<Long> techIds = capability.getTechnologies();
-                    if (techIds == null || techIds.isEmpty()) {
+                    List<Long> techIds = capability.getTechnologies() == null? Collections.emptyList():
+                            capability.getTechnologies().stream()
+                            .map(Technology::getId)
+                            .toList();
+
+                    if (techIds.isEmpty()) {
                         return Mono.just(saved);
                     }
 
@@ -59,8 +66,9 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     }
 
     @Override
-    public Flux<CapabilityWithCountDTO> findAllPagedAndSorted(String sortBy, String direction, int limit, long offset) {
-        return repository.findAllPagedAndSorted(sortBy, direction, limit, offset);
+    public Flux<Capability> findAllPagedAndSorted(String sortBy, String direction, int limit, long offset) {
+        return repository.findAllPagedAndSorted(sortBy, direction, limit, offset)
+                .map(capabilityMapper::entityToDomain);
     }
 
     @Override
@@ -72,5 +80,11 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     public Mono<Boolean> areAllCapabilitiesExist(List<Long> ids) {
         return repository.countByIdIn(ids)
                 .map(count -> count == ids.size());
+    }
+
+    @Override
+    public Flux<Capability> findByIdIn(List<Long> ids) {
+        return repository.findByIdIn(ids)
+                .map(capabilityMapper::entityToDomain);
     }
 }

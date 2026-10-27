@@ -1,7 +1,6 @@
 package com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.repository;
 
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.entity.CapabilityEntity;
-import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityWithCountDTO;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
@@ -28,7 +27,7 @@ public interface SpringDataCapabilityRepository extends ReactiveCrudRepository<C
             CASE WHEN :sortBy = 'technologies_count' AND :direction = 'DESC' THEN COUNT(ct.technology_id) END DESC
         LIMIT :limit OFFSET :offset
     """)
-    Flux<CapabilityWithCountDTO> findAllPagedAndSorted(
+    Flux<CapabilityEntity> findAllPagedAndSorted(
             @Param("sortBy") String sortBy,
             @Param("direction") String direction,
             @Param("limit") int limit,
@@ -36,4 +35,6 @@ public interface SpringDataCapabilityRepository extends ReactiveCrudRepository<C
     );
 
     Mono<Long> countByIdIn(List<Long> ids);
+
+    Flux<CapabilityEntity> findByIdIn(List<Long> ids);
 }
