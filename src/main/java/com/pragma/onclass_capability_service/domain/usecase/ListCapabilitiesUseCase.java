@@ -2,6 +2,7 @@ package com.pragma.onclass_capability_service.domain.usecase;
 
 import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServicePort;
 import com.pragma.onclass_capability_service.domain.model.Capability;
+import com.pragma.onclass_capability_service.domain.model.PageResult;
 import com.pragma.onclass_capability_service.domain.spi.CapabilityPersistencePort;
 import com.pragma.onclass_capability_service.domain.spi.TechnologyGateway;
 import lombok.RequiredArgsConstructor;
@@ -23,11 +24,11 @@ public class ListCapabilitiesUseCase implements FindCapabilitiesServicePort {
     }
 
     @Override
-    public Flux<Capability> listCapabilities(int page, int size, String sortBy, String direction) {
+    public Mono<PageResult<Capability>> listCapabilities(int page, int size, String sortBy, String direction) {
         long offset = (long) page * size;
 
-        return capabilityPersistencePort.findAllPagedAndSorted(sortBy, direction, size, offset)
-                .flatMap(capability ->
+        Flux<Capability> capabilityFlux = capabilityPersistencePort.findAllPagedAndSorted(sortBy, direction, size, offset)
+                .flatMapSequential(capability ->
                     capabilityPersistencePort.findByCapabilityId(capability.getId())
                             .collectList()
                             .flatMap(techIds ->{
@@ -46,6 +47,13 @@ public class ListCapabilitiesUseCase implements FindCapabilitiesServicePort {
                             })
 
                 );
+
+        // Gets the total number of items in the database
+        Mono<Long> totalCountMono = capabilityPersistencePort.countTotal();
+
+        // Combine both results into a domain PageResult.
+        return Mono.zip(capabilityFlux.collectList(), totalCountMono)
+                .map(tuple -> new PageResult<>(tuple.getT1(), tuple.getT2()));
 
     }
 

@@ -27,9 +27,7 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     @Override
     public Mono<Capability> save(Capability capability) {
 
-        CapabilityEntity entity = new CapabilityEntity();
-        entity.setName(capability.getName());
-        entity.setDescription(capability.getDescription());
+        CapabilityEntity entity = capabilityMapper.capabilityToCapabilityEntity(capability);
 
         return repository.save(entity)
                 .flatMap(saved -> {
@@ -52,12 +50,9 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
                             }, 5)
                             .then(Mono.just(saved));
                 })
-                .map(saved -> new Capability(
-                        saved.getId(),
-                        saved.getName(),
-                        saved.getDescription(),
-                        capability.getTechnologies()
-                ));
+                .map(capabilityResponse ->
+                        capabilityMapper.capabilityEntityToCapability(capabilityResponse,
+                                capability.getTechnologies()));
     }
 
     @Override
@@ -68,7 +63,7 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     @Override
     public Flux<Capability> findAllPagedAndSorted(String sortBy, String direction, int limit, long offset) {
         return repository.findAllPagedAndSorted(sortBy, direction, limit, offset)
-                .map(capabilityMapper::entityToDomain);
+                .map(capabilityMapper::capabilityEntityToCapability);
     }
 
     @Override
@@ -85,6 +80,11 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     @Override
     public Flux<Capability> findByIdIn(List<Long> ids) {
         return repository.findByIdIn(ids)
-                .map(capabilityMapper::entityToDomain);
+                .map(capabilityMapper::capabilityEntityToCapability);
+    }
+
+    @Override
+    public Mono<Long> countTotal() {
+        return repository.count();
     }
 }

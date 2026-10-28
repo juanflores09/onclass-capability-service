@@ -15,4 +15,5 @@ public interface CapabilityPersistencePort {
     Flux<Long> findByCapabilityId(Long capabilityId);
     Mono<Boolean> areAllCapabilitiesExist(List<Long> ids);
     Flux<Capability> findByIdIn(List<Long> ids);
+    Mono<Long> countTotal();
 }

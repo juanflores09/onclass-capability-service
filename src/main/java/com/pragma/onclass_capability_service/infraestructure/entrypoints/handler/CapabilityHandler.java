@@ -4,9 +4,8 @@ import com.pragma.onclass_capability_service.domain.api.CreateCapabilityServiceP
 import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServicePort;
 import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
 import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
-import com.pragma.onclass_capability_service.domain.model.Capability;
-import com.pragma.onclass_capability_service.domain.model.Technology;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.*;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.mapper.CapabilityMapper;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.util.Constants;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.util.ErrorDTO;
 import jakarta.validation.ConstraintViolation;
@@ -31,6 +30,7 @@ public class CapabilityHandler {
 
     private final CreateCapabilityServicePort capabilityServicePort;
     private final FindCapabilitiesServicePort findCapabilitiesServicePort;
+    private final CapabilityMapper capabilityMapper;
     private final Validator validator;
 
     public Mono<ServerResponse> createCapability(ServerRequest request) {
@@ -53,23 +53,9 @@ public class CapabilityHandler {
                     }
                     return Mono.just(dto);
                 })
-                .map(dto -> {
-                    Capability capability = new Capability();
-                    capability.setName(dto.name());
-                    capability.setDescription(dto.description());
-                    capability.setTechnologies(dto.technologies().stream()
-                            .map(Technology::new)
-                            .toList());
-                    return capability;
-                })
+                .map(capabilityMapper::capabilityRequestDTOToCapability)
                 .flatMap(capability -> capabilityServicePort.createCapability(capability,messageId))
-                .map(capability ->
-                        new CapabilityResponseDTO(
-                                capability.getId(),
-                                capability.getName(),
-                                capability.getDescription()
-                        )
-                )
+                .map(capabilityMapper::capabilityResponseDTOToCapability)
                 .doOnSuccess(saved ->log.info("Capability successfully created  with messageId: {}", messageId))
                 .flatMap(saved -> ServerResponse
                         .status(HttpStatus.CREATED)
@@ -119,17 +105,26 @@ public class CapabilityHandler {
                 .orElse("ASC");
 
         return findCapabilitiesServicePort.listCapabilities(page, size, sortBy, direction)
-                .map(capability ->
-                     new CapabilityResponseDTO(
-                            capability.getId(),
-                            capability.getName(),
-                            capability.getDescription(),
-                            capability.getTechnologies().stream()
-                                    .map(x -> new TechnologyResponseDTO(x.getId(), x.getName()))
-                                    .toList()
-                    )
-                )
-                .collectList()
+                .map(pageResult ->{
+
+                    // Map domain content to response DTOs
+                    List<CapabilityResponseDTO> bootcampDTOs = pageResult.content().stream()
+                            .map(capability -> capabilityMapper.capabilityResponseDTOToCapability(
+                                    capability, capability.getTechnologies()))
+                            .toList();
+
+                    // Calculate the total number of pages
+                    int totalPages = (int) Math.ceil((double) pageResult.totalElements() / size);
+
+                    // Build the paginated response structure
+                    return new PageResponseDTO<>(
+                            page+1,
+                            size,
+                            pageResult.totalElements(),
+                            totalPages,
+                            bootcampDTOs
+                    );
+                })
                 .flatMap(capabilities -> ServerResponse
                         .status(HttpStatus.OK)
                         .bodyValue(capabilities))
