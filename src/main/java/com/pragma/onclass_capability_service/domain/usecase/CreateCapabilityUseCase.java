@@ -24,18 +24,22 @@ public class CreateCapabilityUseCase implements CreateCapabilityServicePort {
     @Transactional
     public Mono<Capability> createCapability(Capability capability, String messageId) {
 
-        // Get IDs from the Technology object list of the domain model
         List<Long> technologyIds = (capability.getTechnologies() == null) ? Collections.emptyList()
                 : capability.getTechnologies().stream()
                   .map(Technology::getId)
                   .toList();
 
         return capabilityPersistencePort.existsByName(capability.getName())
-                .filter(exits -> !exits)
+                .filter(exists -> !exists)
                 .switchIfEmpty(Mono.error(new BusinessException(TechnicalMessage.CAPABILITY_ALREADY_EXISTS)))
-                .flatMap(ignored -> technologyValidatorGateway.validateTechnologiesExist(technologyIds, messageId))
-                .filter(Boolean.TRUE::equals)
-                .switchIfEmpty(Mono.error(new BusinessException(TechnicalMessage.TECHNOLOGY_NOT_FOUND)))
-                .flatMap(ignored -> capabilityPersistencePort.save(capability));
+                .flatMap(ignored -> capabilityPersistencePort.save(capability))
+                .flatMap(savedCapability ->
+                        technologyValidatorGateway.saveCapabilityTechnologies(savedCapability.getId(), technologyIds, messageId)
+                                .thenReturn(savedCapability)
+                                .onErrorResume(ex ->
+                                    capabilityPersistencePort.deleteById(savedCapability.getId())
+                                            .then(Mono.error(ex))
+                                )
+                );
     }
 }

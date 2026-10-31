@@ -15,8 +15,9 @@ public class CapabilityRouter {
         return route()
                 .POST("/api/v1/capabilities", handler::createCapability)
                 .GET("/api/v1/capabilities", handler::listCapabilities)
-                .POST("/api/v1/capabilities/validate", handler::validateCapabilities)
-                .POST("/api/v1/capabilities/find", handler::findCapabilitiesByIds)
+                .POST("/api/v1/capabilities/bootcamp-capabilities", handler::saveBootcampCapabilities)
+                .POST("/api/v1/capabilities/find-by-bootcamps", handler::findCapabilitiesByBootcampIds)
+                .DELETE("/api/v1/capabilities/bootcamp/{id}", handler::deleteCapabilitiesByBootcamp)
                 .build();
     }
 }

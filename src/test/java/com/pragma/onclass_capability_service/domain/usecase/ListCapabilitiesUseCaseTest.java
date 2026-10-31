@@ -1,11 +1,14 @@
 package com.pragma.onclass_capability_service.domain.usecase;
 
 import com.pragma.onclass_capability_service.domain.model.Capability;
-import com.pragma.onclass_capability_service.domain.model.PageResult;
+import com.pragma.onclass_capability_service.domain.model.CapabilityBootcamp;
 import com.pragma.onclass_capability_service.domain.model.Technology;
 import com.pragma.onclass_capability_service.domain.spi.CapabilityPersistencePort;
 import com.pragma.onclass_capability_service.domain.spi.TechnologyGateway;
-import org.junit.jupiter.api.BeforeEach;
+import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.CapabilityIdsRequestDTO;
+import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.CapabilityTechnologiesResponseDTO;
+import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.TechnologyDTO;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.mapper.TechnologyMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,127 +18,181 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(MockitoExtension.class)
 class ListCapabilitiesUseCaseTest {
-
     @Mock
     private CapabilityPersistencePort capabilityPersistencePort;
 
     @Mock
     private TechnologyGateway technologyGateway;
 
+    @Mock
+    private TechnologyMapper technologyMapper;
+
     @InjectMocks
-    private ListCapabilitiesUseCase listCapabilitiesUseCase;
-
-    private Capability capability;
-    private Technology technology;
-
-    @BeforeEach
-    void setUp() {
-        technology = new Technology(1L, "Spring Boot", "Framework");
-
-        capability = new Capability();
-        capability.setId(10L);
-        capability.setName("Backend Development");
-        capability.setDescription("Desarrollo backend");
-    }
+    private ListCapabilitiesUseCase useCase;
 
     @Test
-    void areAllCapabilitiesExist_ReturnsTrue() {
-        List<Long> ids = List.of(10L, 20L);
+    void areAllCapabilitiesExist_ShouldReturnTrue_WhenIdsExist() {
+        // Given
+        List<Long> ids = List.of(1L, 2L);
         when(capabilityPersistencePort.areAllCapabilitiesExist(ids)).thenReturn(Mono.just(true));
 
-        Mono<Boolean> result = listCapabilitiesUseCase.areAllCapabilitiesExist(ids);
-
-        StepVerifier.create(result)
+        // When & Then
+        StepVerifier.create(useCase.areAllCapabilitiesExist(ids))
                 .expectNext(true)
                 .verifyComplete();
 
-        verify(capabilityPersistencePort, times(1)).areAllCapabilitiesExist(ids);
+        verify(capabilityPersistencePort).areAllCapabilitiesExist(ids);
     }
 
     @Test
-    void listCapabilities_Success() {
+    void listCapabilities_ShouldReturnPagedResultWithEnrichedTechnologies() {
+        // Given
         int page = 0;
         int size = 10;
         String sortBy = "name";
         String direction = "ASC";
-        long offset = 0L;
+        String message = "msg-123";
 
-        when(capabilityPersistencePort.findAllPagedAndSorted(sortBy, direction, size, offset))
+        Capability capability = new Capability();
+        capability.setId(1L);
+        capability.setName("Backend");
+        capability.setDescription("Backend development");
+
+        TechnologyDTO techDTO = new TechnologyDTO(10L, "Java", "Programming language");
+        CapabilityTechnologiesResponseDTO techResponse = new CapabilityTechnologiesResponseDTO(1L, List.of(techDTO));
+
+        when(capabilityPersistencePort.findAllPagedAndSorted(eq(sortBy), eq(direction), eq(size), anyLong()))
                 .thenReturn(Flux.just(capability));
-        when(capabilityPersistencePort.findByCapabilityId(capability.getId()))
-                .thenReturn(Flux.just(1L));
-        when(technologyGateway.getTechnologiesByIds(List.of(1L)))
-                .thenReturn(Flux.just(technology));
-        when(capabilityPersistencePort.countTotal())
-                .thenReturn(Mono.just(1L));
+        when(capabilityPersistencePort.countTotal()).thenReturn(Mono.just(1L));
 
-        Mono<PageResult<Capability>> result = listCapabilitiesUseCase.listCapabilities(page, size, sortBy, direction);
+        when(technologyGateway.getTechnologiesByCapabilityId(any(CapabilityIdsRequestDTO.class), eq(message)))
+                .thenReturn(Flux.just(techResponse));
 
-        StepVerifier.create(result)
-                .expectNextMatches(pageResult ->
-                        pageResult.totalElements() == 1L &&
-                                pageResult.content().size() == 1 &&
-                                pageResult.content().getFirst().getTechnologies().size() == 1 &&
-                                pageResult.content().getFirst().getTechnologies().getFirst().getName().equals("Spring Boot")
-                )
+        // When & Then
+        StepVerifier.create(useCase.listCapabilities(page, size, sortBy, direction, message))
+                .assertNext(pageResult -> {
+                    assert pageResult.totalElements() == 1L;
+                    assert pageResult.content().size() == 1;
+                    assert pageResult.content().getFirst().getId().equals(1L);
+                })
                 .verifyComplete();
 
-        verify(capabilityPersistencePort, times(1)).findAllPagedAndSorted(sortBy, direction, size, offset);
-        verify(capabilityPersistencePort, times(1)).findByCapabilityId(capability.getId());
-        verify(technologyGateway, times(1)).getTechnologiesByIds(List.of(1L));
-        verify(capabilityPersistencePort, times(1)).countTotal();
+        verify(capabilityPersistencePort).findAllPagedAndSorted(sortBy, direction, size, 0L);
+        verify(capabilityPersistencePort).countTotal();
+        verify(technologyGateway).getTechnologiesByCapabilityId(any(CapabilityIdsRequestDTO.class), eq(message));
     }
 
     @Test
-    void listCapabilities_WithoutTechnologies_Success() {
+    void findCapabilitiesByBootcampIds_ShouldReturnEnrichedBootcampCapabilities() {
+        // Given
+        List<Long> bootcampIds = List.of(100L);
+        String messageId = "msg-456";
+
+        Capability capability = new Capability(1L, "Backend", "Backend development");
+        CapabilityBootcamp bootcamp = new CapabilityBootcamp(100L, List.of(capability));
+
+        TechnologyDTO techDTO = new TechnologyDTO(10L, "Spring Boot", "Framework");
+        Technology technology = new Technology(10L, "Spring Boot", "Framework");
+        CapabilityTechnologiesResponseDTO techResponse = new CapabilityTechnologiesResponseDTO(1L, List.of(techDTO));
+
+        when(capabilityPersistencePort.findCapabilitiesByBootcampIds(bootcampIds))
+                .thenReturn(Flux.just(bootcamp));
+
+        when(technologyGateway.getTechnologiesByCapabilityId(any(CapabilityIdsRequestDTO.class), eq(messageId)))
+                .thenReturn(Flux.just(techResponse));
+
+        when(technologyMapper.technologyDtoToTechnology(techDTO)).thenReturn(technology);
+
+        // When & Then
+        StepVerifier.create(useCase.findCapabilitiesByBootcampIds(bootcampIds, messageId))
+                .assertNext(result -> {
+                    assert result.bootcampId().equals(100L);
+                    assert result.capabilities().size() == 1;
+                    assert result.capabilities().getFirst().getTechnologies().size() == 1;
+                    assert result.capabilities().getFirst().getTechnologies().getFirst().getName().equals("Spring Boot");
+                })
+                .verifyComplete();
+
+        verify(capabilityPersistencePort).findCapabilitiesByBootcampIds(bootcampIds);
+        verify(technologyGateway).getTechnologiesByCapabilityId(any(CapabilityIdsRequestDTO.class), eq(messageId));
+        verify(technologyMapper).technologyDtoToTechnology(techDTO);
+    }
+
+    @Test
+    void listCapabilities_ShouldReturnEmptyPageResult_WhenNoCapabilitiesFound() {
+        // Given
         int page = 0;
         int size = 10;
         String sortBy = "name";
         String direction = "ASC";
+        String message = "msg-123";
         long offset = 0L;
 
         when(capabilityPersistencePort.findAllPagedAndSorted(sortBy, direction, size, offset))
-                .thenReturn(Flux.just(capability));
-        when(capabilityPersistencePort.findByCapabilityId(capability.getId()))
                 .thenReturn(Flux.empty());
+
         when(capabilityPersistencePort.countTotal())
-                .thenReturn(Mono.just(1L));
+                .thenReturn(Mono.just(0L));
 
-        Mono<PageResult<Capability>> result = listCapabilitiesUseCase.listCapabilities(page, size, sortBy, direction);
-
-        StepVerifier.create(result)
-                .expectNextMatches(pageResult ->
-                        pageResult.totalElements() == 1L &&
-                                pageResult.content().getFirst().getTechnologies().isEmpty()
-                )
+        // When & Then
+        StepVerifier.create(useCase.listCapabilities(page, size, sortBy, direction, message))
+                .assertNext(pageResult -> {
+                    assertThat(pageResult.content()).isEmpty();
+                    assertThat(pageResult.totalElements()).isZero();
+                })
                 .verifyComplete();
 
-        verify(technologyGateway, never()).getTechnologiesByIds(any());
+        verify(capabilityPersistencePort).findAllPagedAndSorted(sortBy, direction, size, offset);
+        verify(capabilityPersistencePort).countTotal();
+        verifyNoInteractions(technologyGateway);
     }
 
     @Test
-    void findByIdIn_Success() {
-        List<Long> ids = List.of(10L);
+    void findCapabilitiesByBootcampIds_ShouldReturnEmpty_WhenNoBootcampsFound() {
+        // Given
+        List<Long> bootcampIds = List.of(999L);
+        String messageId = "msg-789";
 
-        when(capabilityPersistencePort.findByIdIn(ids)).thenReturn(Flux.just(capability));
-        when(capabilityPersistencePort.findByCapabilityId(capability.getId()))
-                .thenReturn(Flux.just(1L));
-        when(technologyGateway.getTechnologiesByIds(List.of(1L)))
-                .thenReturn(Flux.just(technology));
+        when(capabilityPersistencePort.findCapabilitiesByBootcampIds(bootcampIds))
+                .thenReturn(Flux.empty());
 
-        Flux<Capability> result = listCapabilitiesUseCase.findByIdIn(ids);
-
-        StepVerifier.create(result)
-                .expectNextMatches(cap -> cap.getTechnologies().size() == 1)
+        // When & Then
+        StepVerifier.create(useCase.findCapabilitiesByBootcampIds(bootcampIds, messageId))
                 .verifyComplete();
 
-        verify(capabilityPersistencePort, times(1)).findByIdIn(ids);
-        verify(technologyGateway, times(1)).getTechnologiesByIds(List.of(1L));
+        verify(capabilityPersistencePort).findCapabilitiesByBootcampIds(bootcampIds);
+        verifyNoInteractions(technologyGateway);
+    }
+
+    @Test
+    void findCapabilitiesByBootcampIds_ShouldReturnBootcampsDirectly_WhenCapabilityIdsAreEmpty() {
+        // Given
+        List<Long> bootcampIds = List.of(100L);
+        String messageId = "msg-888";
+
+        CapabilityBootcamp bootcampWithoutCapabilities = new CapabilityBootcamp(100L, Collections.emptyList());
+
+        when(capabilityPersistencePort.findCapabilitiesByBootcampIds(bootcampIds))
+                .thenReturn(Flux.just(bootcampWithoutCapabilities));
+
+        // When & Then
+        StepVerifier.create(useCase.findCapabilitiesByBootcampIds(bootcampIds, messageId))
+                .assertNext(result -> {
+                    assertThat(result.bootcampId()).isEqualTo(100L);
+                    assertThat(result.capabilities()).isEmpty();
+                })
+                .verifyComplete();
+
+        verify(capabilityPersistencePort).findCapabilitiesByBootcampIds(bootcampIds);
+        verifyNoInteractions(technologyGateway);
+        verifyNoInteractions(technologyMapper);
     }
 }

@@ -1,18 +1,18 @@
 package com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter;
 
-import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
-import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
-import com.pragma.onclass_capability_service.domain.exceptions.TechnicalException;
-import com.pragma.onclass_capability_service.domain.model.Technology;
+import com.pragma.onclass_capability_service.domain.exceptions.ExternalServiceException;
 import com.pragma.onclass_capability_service.domain.spi.TechnologyGateway;
-import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.TechnologyIdsRequestDTO;
+import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.CapabilityIdsRequestDTO;
+import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.CapabilityTechnologiesRequestDTO;
+import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.dto.CapabilityTechnologiesResponseDTO;
 import com.pragma.onclass_capability_service.infraestructure.adapters.technologywebclientadapter.util.Constants;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.ApiResponseDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -27,48 +27,48 @@ public class TechnologyWebClientAdapter implements TechnologyGateway {
     private final WebClient webClient;
 
     @Override
-    public Mono<Boolean> validateTechnologiesExist(List<Long> ids, String messageId) {
-
-        TechnologyIdsRequestDTO requestBody = new TechnologyIdsRequestDTO(ids);
-
+    public Flux<CapabilityTechnologiesResponseDTO> getTechnologiesByCapabilityId(CapabilityIdsRequestDTO capabilityIds, String messageId) {
         return webClient.post()
-                .uri("/api/v1/technologies/validate")
-                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .uri("/api/v1/technologies/find-by-capabilities")
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .header(Constants.X_MESSAGE_ID, messageId)
-                .bodyValue(requestBody)
+                .bodyValue(capabilityIds)
                 .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, response -> buildErrorResponse(response, TechnicalMessage.INVALID_PARAMETERS))
-                .onStatus(HttpStatusCode::is5xxServerError, response -> buildErrorResponse(response, TechnicalMessage.INTERNAL_ERROR_IN_ADAPTERS))
-                .bodyToMono(Boolean.class)
-                .doOnNext(response -> log.info("Received API response for messageId {}: {}", messageId, response))
-                .defaultIfEmpty(false);
+                .onStatus(HttpStatusCode::isError, response ->
+                        response.bodyToMono(ApiResponseDTO.class)
+                                .flatMap(errorResponse -> Mono.error(new ExternalServiceException(errorResponse)))
+                )
+                .bodyToFlux(CapabilityTechnologiesResponseDTO.class);
     }
 
     @Override
-    public Flux<Technology> getTechnologiesByIds(List<Long> ids) {
+    public Mono<Void> saveCapabilityTechnologies(Long capabilityId, List<Long> technologyIds, String messageId) {
 
-        TechnologyIdsRequestDTO requestBody = new TechnologyIdsRequestDTO(ids);
+        CapabilityTechnologiesRequestDTO requestBody = new CapabilityTechnologiesRequestDTO(capabilityId, technologyIds);
 
         return webClient.post()
-                .uri("/api/v1/technologies/find")
-                .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                .header(Constants.X_MESSAGE_ID, "")
+                .uri("/api/v1/capabilities-technologies")
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .header(Constants.X_MESSAGE_ID, messageId)
                 .bodyValue(requestBody)
                 .retrieve()
-                .onStatus(HttpStatusCode::is4xxClientError, response -> buildErrorResponse(response, TechnicalMessage.INVALID_PARAMETERS))
-                .onStatus(HttpStatusCode::is5xxServerError, response -> buildErrorResponse(response, TechnicalMessage.INTERNAL_ERROR_IN_ADAPTERS))
-                .bodyToFlux(Technology.class);
+                .onStatus(HttpStatusCode::isError, response ->
+                        response.bodyToMono(ApiResponseDTO.class)
+                                .flatMap(errorResponse -> Mono.error(new ExternalServiceException(errorResponse)))
+                )
+                .bodyToMono(Void.class);
     }
 
-    private Mono<Throwable> buildErrorResponse(ClientResponse response, TechnicalMessage technicalMessage) {
-        return response.bodyToMono(String.class)
-                .defaultIfEmpty(Constants.NO_ADITIONAL_ERROR_DETAILS)
-                .flatMap(errorBody -> {
-                    log.error(Constants.STRING_ERROR_BODY_DATA, errorBody);
-                    return Mono.error(
-                            response.statusCode().is5xxServerError() ?
-                                    new TechnicalException(technicalMessage):
-                                    new BusinessException(technicalMessage));
-                });
+    @Override
+    public Mono<Void> deleteTechnologiesByCapability(Long capabilityId, String messageId) {
+        return webClient.delete()
+                .uri("/api/v1/technologies/capability/{id}", capabilityId)
+                .header(Constants.X_MESSAGE_ID, messageId)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, response ->
+                        response.bodyToMono(ApiResponseDTO.class)
+                                .flatMap(errorResponse -> Mono.error(new ExternalServiceException(errorResponse)))
+                )
+                .bodyToMono(Void.class);
     }
 }

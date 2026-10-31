@@ -1,13 +1,16 @@
 package com.pragma.onclass_capability_service.infraestructure.entrypoints.mapper;
 
 import com.pragma.onclass_capability_service.domain.model.Capability;
+import com.pragma.onclass_capability_service.domain.model.CapabilityBootcamp;
 import com.pragma.onclass_capability_service.domain.model.Technology;
 import com.pragma.onclass_capability_service.infraestructure.adapters.persistenceadapters.entity.CapabilityEntity;
+import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.BootcampCapabilitiesResponseDTO;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityRequestDTO;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.CapabilityResponseDTO;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.TechnologyResponseDTO;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 
 @Component
@@ -17,6 +20,7 @@ public class CapabilityMapper {
         CapabilityEntity entity = new CapabilityEntity();
         entity.setName(capability.getName());
         entity.setDescription(capability.getDescription());
+        entity.setTechnologyCount(capability.getTechnologies().size());
         return entity;
     }
 
@@ -37,7 +41,7 @@ public class CapabilityMapper {
         );
     }
 
-    public CapabilityResponseDTO capabilityResponseDTOToCapability(Capability capability){
+    public CapabilityResponseDTO capabilityToCapabilityResponseDTO(Capability capability){
         return new CapabilityResponseDTO(
                 capability.getId(),
                 capability.getName(),
@@ -46,7 +50,7 @@ public class CapabilityMapper {
     }
 
 
-    public CapabilityResponseDTO capabilityResponseDTOToCapability(Capability capability, List<Technology> technologyList){
+    public CapabilityResponseDTO capabilityToCapabilityResponseDTO(Capability capability, List<Technology> technologyList){
         return new CapabilityResponseDTO(
                 capability.getId(),
                 capability.getName(),
@@ -67,4 +71,19 @@ public class CapabilityMapper {
                 .toList());
         return capability;
     }
+
+    public  List<BootcampCapabilitiesResponseDTO> toResponseDTO(List<CapabilityBootcamp> capabilityBootcamp){
+        if(capabilityBootcamp == null){
+            return Collections.emptyList();
+        }
+        return capabilityBootcamp.stream()
+                .map(cb -> new BootcampCapabilitiesResponseDTO(
+                        cb.bootcampId(),
+                        cb.capabilities().stream()
+                                .map(capability -> this.capabilityToCapabilityResponseDTO(capability, capability.getTechnologies()))
+                                .toList()
+                ))
+                .toList();
+    }
+
 }

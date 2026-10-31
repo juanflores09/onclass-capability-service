@@ -43,6 +43,7 @@ class CreateCapabilityUseCaseTest {
         tech.setId(1L);
 
         capability = new Capability();
+        capability.setId(1L);
         capability.setName("Backend Development");
         capability.setDescription("Desarrollo backend");
         capability.setTechnologies(List.of(tech));
@@ -52,8 +53,9 @@ class CreateCapabilityUseCaseTest {
     void createCapability_Success() {
         // Given
         when(capabilityPersistencePort.existsByName(capability.getName())).thenReturn(Mono.just(false));
-        when(technologyValidatorGateway.validateTechnologiesExist(List.of(1L), messageId)).thenReturn(Mono.just(true));
         when(capabilityPersistencePort.save(capability)).thenReturn(Mono.just(capability));
+        when(technologyValidatorGateway.saveCapabilityTechnologies(anyLong(), anyList(), eq(messageId)))
+                .thenReturn(Mono.empty());
 
         // When
         Mono<Capability> result = createCapabilityUseCase.createCapability(capability, messageId);
@@ -64,8 +66,29 @@ class CreateCapabilityUseCaseTest {
                 .verifyComplete();
 
         verify(capabilityPersistencePort, times(1)).existsByName(capability.getName());
-        verify(technologyValidatorGateway, times(1)).validateTechnologiesExist(List.of(1L), messageId);
         verify(capabilityPersistencePort, times(1)).save(capability);
+        verify(technologyValidatorGateway, times(1)).saveCapabilityTechnologies(any(), any(), eq(messageId));
+    }
+
+    @Test
+    void createCapability_Technologies_is_Null(){
+
+        capability.setTechnologies(null);
+
+        when(capabilityPersistencePort.existsByName(capability.getName())).thenReturn(Mono.just(false));
+        when(capabilityPersistencePort.save(capability)).thenReturn(Mono.just(capability));
+        when(technologyValidatorGateway.saveCapabilityTechnologies(any(), any(), eq(messageId)))
+                .thenReturn(Mono.empty());
+
+        Mono<Capability> result = createCapabilityUseCase.createCapability(capability, messageId);
+
+        StepVerifier.create(result)
+                .expectNext(capability)
+                .verifyComplete();
+
+        verify(capabilityPersistencePort).existsByName(capability.getName());
+        verify(capabilityPersistencePort).save(capability);
+        verify(technologyValidatorGateway).saveCapabilityTechnologies(any(), any(), eq(messageId));
     }
 
     @Test
@@ -86,7 +109,6 @@ class CreateCapabilityUseCaseTest {
                 .verify();
 
         verify(capabilityPersistencePort, times(1)).existsByName(capability.getName());
-        verify(technologyValidatorGateway, never()).validateTechnologiesExist(any(), any());
         verify(capabilityPersistencePort, never()).save(any());
     }
 
@@ -94,8 +116,10 @@ class CreateCapabilityUseCaseTest {
     void createCapability_TechnologyNotFound_ThrowsBusinessException() {
         // Given
         when(capabilityPersistencePort.existsByName(capability.getName())).thenReturn(Mono.just(false));
-        when(technologyValidatorGateway.validateTechnologiesExist(List.of(1L), messageId)).thenReturn(Mono.just(false));
-
+        when(capabilityPersistencePort.save(capability)).thenReturn(Mono.just(capability));
+        when(capabilityPersistencePort.deleteById(any())).thenReturn(Mono.empty());
+        when(technologyValidatorGateway.saveCapabilityTechnologies(any(), any(), eq(messageId)))
+                .thenReturn(Mono.error(new BusinessException(TechnicalMessage.TECHNOLOGY_NOT_FOUND)));
         // When
         Mono<Capability> result = createCapabilityUseCase.createCapability(capability, messageId);
 
@@ -109,7 +133,8 @@ class CreateCapabilityUseCaseTest {
                 .verify();
 
         verify(capabilityPersistencePort, times(1)).existsByName(capability.getName());
-        verify(technologyValidatorGateway, times(1)).validateTechnologiesExist(List.of(1L), messageId);
-        verify(capabilityPersistencePort, never()).save(any());
+        verify(capabilityPersistencePort, times(1)).save(capability);
+        verify(capabilityPersistencePort, times(1)).deleteById(any());
+        verify(technologyValidatorGateway, times(1)).saveCapabilityTechnologies(any(), any(), eq(messageId));
     }
 }

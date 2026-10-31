@@ -1,9 +1,12 @@
 package com.pragma.onclass_capability_service.infraestructure.entrypoints.handler;
 
 import com.pragma.onclass_capability_service.domain.api.CreateCapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.api.DeleteCapabilitiesByBootcampServicePort;
 import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServicePort;
+import com.pragma.onclass_capability_service.domain.api.SaveBootcampCapabilityServicePort;
 import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
 import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
+import com.pragma.onclass_capability_service.domain.exceptions.ExternalServiceException;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.dto.*;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.mapper.CapabilityMapper;
 import com.pragma.onclass_capability_service.infraestructure.entrypoints.util.Constants;
@@ -30,6 +33,8 @@ public class CapabilityHandler {
 
     private final CreateCapabilityServicePort capabilityServicePort;
     private final FindCapabilitiesServicePort findCapabilitiesServicePort;
+    private final SaveBootcampCapabilityServicePort saveBootcampCapabilityServicePort;
+    private final DeleteCapabilitiesByBootcampServicePort deleteCapabilitiesByBootcampServicePort;
     private final CapabilityMapper capabilityMapper;
     private final Validator validator;
 
@@ -55,7 +60,7 @@ public class CapabilityHandler {
                 })
                 .map(capabilityMapper::capabilityRequestDTOToCapability)
                 .flatMap(capability -> capabilityServicePort.createCapability(capability,messageId))
-                .map(capabilityMapper::capabilityResponseDTOToCapability)
+                .map(capabilityMapper::capabilityToCapabilityResponseDTO)
                 .doOnSuccess(saved ->log.info("Capability successfully created  with messageId: {}", messageId))
                 .flatMap(saved -> ServerResponse
                         .status(HttpStatus.CREATED)
@@ -71,6 +76,20 @@ public class CapabilityHandler {
                                 .message(ex.getMessage())
                                 .build())
                 ))
+                .onErrorResume(ExternalServiceException.class, ex -> {
+                    ApiResponseDTO errorResponse = ex.getErrorResponse();
+                    HttpStatus status = HttpStatus.resolve(Integer.parseInt(errorResponse.getCode()));
+                    if (status == null) {
+                        status = HttpStatus.BAD_REQUEST;
+                    }
+
+                    return buildErrorResponse(
+                            status,
+                            messageId,
+                            TechnicalMessage.EXTERNAL_SERVICE_ERROR,
+                            errorResponse.getErrors()
+                    );
+                })
                 .onErrorResume(ex -> {
                     log.error("[createTechnology] Unexpected error occurred for messageId: {}", messageId, ex);
                     return buildErrorResponse(
@@ -104,12 +123,12 @@ public class CapabilityHandler {
         String direction = request.queryParam("direction")
                 .orElse("ASC");
 
-        return findCapabilitiesServicePort.listCapabilities(page, size, sortBy, direction)
+        return findCapabilitiesServicePort.listCapabilities(page, size, sortBy, direction, messageId)
                 .map(pageResult ->{
 
                     // Map domain content to response DTOs
                     List<CapabilityResponseDTO> bootcampDTOs = pageResult.content().stream()
-                            .map(capability -> capabilityMapper.capabilityResponseDTOToCapability(
+                            .map(capability -> capabilityMapper.capabilityToCapabilityResponseDTO(
                                     capability, capability.getTechnologies()))
                             .toList();
 
@@ -152,53 +171,37 @@ public class CapabilityHandler {
                 });
     }
 
-    public Mono<ServerResponse> validateCapabilities(ServerRequest request) {
-
+    public Mono<ServerResponse> saveBootcampCapabilities(ServerRequest request){
         String messageId = request.headers().firstHeader(Constants.X_MESSAGE_ID);
 
-        return request.bodyToMono(CapabilityIdsRequestDTO.class)
+        return request.bodyToMono(BootcampCapabilitiesRequestDTO.class)
                 .flatMap(dto -> {
-
-                    Set<ConstraintViolation<CapabilityIdsRequestDTO>> violations = validator.validate(dto);
+                    Set<ConstraintViolation<BootcampCapabilitiesRequestDTO>> violations = validator.validate(dto);
                     if (!violations.isEmpty()) {
                         String errorMessage = violations.iterator().next().getMessage();
                         return Mono.error(new BusinessException(errorMessage, TechnicalMessage.INVALID_PARAMETERS));
                     }
                     return Mono.just(dto);
                 })
-                .flatMap(dto -> findCapabilitiesServicePort.areAllCapabilitiesExist(dto.ids())
-                )
-                .flatMap(exists -> ServerResponse
-                        .status(HttpStatus.OK)
-                        .bodyValue(exists))
-                .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNull(messageId)))
+                .flatMap(dto -> saveBootcampCapabilityServicePort.saveAll(dto.bootcampId(), dto.capabilityIds()))
+                .then(ServerResponse.status(HttpStatus.CREATED).build())
+                .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNullElse(messageId, "")))
                 .onErrorResume(BusinessException.class, ex -> buildErrorResponse(
-                        HttpStatus.BAD_REQUEST,
-                        messageId,
-                        ex.getTechnicalMessage(),
-                        List.of(ErrorDTO.builder()
-                                .code(ex.getTechnicalMessage().getCode())
-                                .message(ex.getMessage())
-                                .build())
+                        HttpStatus.BAD_REQUEST, messageId, ex.getTechnicalMessage(),
+                        List.of(ErrorDTO.builder().code(ex.getTechnicalMessage().getCode()).message(ex.getMessage()).build())
                 ))
                 .onErrorResume(ex -> {
-                    log.error("Unexpected error occurred for messageId: {}", messageId, ex);
+                    log.error("[saveBootcampCapabilities] Unexpected error for messageId: {}", messageId, ex);
                     return buildErrorResponse(
-                            HttpStatus.INTERNAL_SERVER_ERROR,
-                            messageId,
-                            TechnicalMessage.INTERNAL_ERROR,
-                            List.of(ErrorDTO.builder()
-                                    .code(TechnicalMessage.INTERNAL_ERROR.getCode())
-                                    .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
-                                    .build())
+                            HttpStatus.INTERNAL_SERVER_ERROR, messageId, TechnicalMessage.INTERNAL_ERROR,
+                            List.of(ErrorDTO.builder().code(TechnicalMessage.INTERNAL_ERROR.getCode()).message(TechnicalMessage.INTERNAL_ERROR.getMessage()).build())
                     );
                 });
     }
 
-    public Mono<ServerResponse> findCapabilitiesByIds(ServerRequest request) {
+    public Mono<ServerResponse> findCapabilitiesByBootcampIds(ServerRequest request) {
 
         String messageId = request.headers().firstHeader(Constants.X_MESSAGE_ID);
-
         return request.bodyToMono(CapabilityIdsRequestDTO.class)
                 .flatMap(dto -> {
 
@@ -209,9 +212,10 @@ public class CapabilityHandler {
                     }
                     return Mono.just(dto);
                 })
-                .flatMap(dto -> findCapabilitiesServicePort.findByIdIn(dto.ids())
+                .flatMap(dto -> findCapabilitiesServicePort.findCapabilitiesByBootcampIds(dto.ids(), messageId)
                         .collectList()
                 )
+                .map(capabilityMapper::toResponseDTO)
                 .flatMap(capabilities -> ServerResponse
                         .status(HttpStatus.OK)
                         .bodyValue(capabilities))
@@ -227,6 +231,42 @@ public class CapabilityHandler {
                 ))
                 .onErrorResume(ex -> {
                     log.error("[findTechnologiesByIds] Unexpected error occurred for messageId: {}", messageId, ex);
+                    return buildErrorResponse(
+                            HttpStatus.INTERNAL_SERVER_ERROR,
+                            messageId,
+                            TechnicalMessage.INTERNAL_ERROR,
+                            List.of(ErrorDTO.builder()
+                                    .code(TechnicalMessage.INTERNAL_ERROR.getCode())
+                                    .message(TechnicalMessage.INTERNAL_ERROR.getMessage())
+                                    .build())
+                    );
+                });
+    }
+
+    public Mono<ServerResponse> deleteCapabilitiesByBootcamp(ServerRequest request) {
+        String messageId = request.headers().firstHeader(Constants.X_MESSAGE_ID);
+
+        return Mono.fromCallable(() -> Long.valueOf(request.pathVariable("id")))
+                .onErrorMap(NumberFormatException.class, ex ->
+                        new BusinessException("Invalid bootcamp ID format", TechnicalMessage.INVALID_PARAMETERS)
+                )
+                .flatMap(bootcampId ->
+                        deleteCapabilitiesByBootcampServicePort.deleteCapabilitiesByBootcamp(bootcampId, messageId)
+                                .doOnSuccess(unused -> log.info("Capabilities and relations successfully cleaned up for bootcampId: {} with messageId: {}", bootcampId, messageId))
+                                .then(ServerResponse.noContent().build())
+                )
+                .contextWrite(Context.of(Constants.X_MESSAGE_ID, Objects.requireNonNull(messageId)))
+                .onErrorResume(BusinessException.class, ex -> buildErrorResponse(
+                        HttpStatus.BAD_REQUEST,
+                        messageId,
+                        ex.getTechnicalMessage(),
+                        List.of(ErrorDTO.builder()
+                                .code(ex.getTechnicalMessage().getCode())
+                                .message(ex.getMessage())
+                                .build())
+                ))
+                .onErrorResume(ex -> {
+                    log.error("[deleteCapabilitiesByBootcamp] Unexpected error occurred with messageId: {}", messageId, ex);
                     return buildErrorResponse(
                             HttpStatus.INTERNAL_SERVER_ERROR,
                             messageId,

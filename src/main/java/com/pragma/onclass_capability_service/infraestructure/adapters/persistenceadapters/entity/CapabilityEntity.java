@@ -14,4 +14,5 @@ public class CapabilityEntity {
     private Long id;
     private String name;
     private String description;
+    private int technologyCount;
 }
