@@ -1,8 +1,11 @@
 package com.pragma.onclass_capability_service.infraestructure.entrypoints.handler;
 
 import com.pragma.onclass_capability_service.domain.api.CreateCapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.api.DeleteCapabilitiesByBootcampServicePort;
 import com.pragma.onclass_capability_service.domain.api.FindCapabilitiesServicePort;
 import com.pragma.onclass_capability_service.domain.api.SaveBootcampCapabilityServicePort;
+import com.pragma.onclass_capability_service.domain.enums.TechnicalMessage;
+import com.pragma.onclass_capability_service.domain.exceptions.BusinessException;
 import com.pragma.onclass_capability_service.domain.model.Capability;
 import com.pragma.onclass_capability_service.domain.model.CapabilityBootcamp;
 import com.pragma.onclass_capability_service.domain.model.PageResult;
@@ -39,6 +42,9 @@ class CapabilityHandlerTest {
 
     @Mock
     private SaveBootcampCapabilityServicePort saveBootcampCapabilityServicePort;
+
+    @Mock
+    private DeleteCapabilitiesByBootcampServicePort deleteCapabilitiesByBootcampServicePort;
 
     @Mock
     private CapabilityMapper capabilityMapper;
@@ -161,5 +167,78 @@ class CapabilityHandlerTest {
 
         verify(findCapabilitiesServicePort).findCapabilitiesByBootcampIds(List.of(100L), "msg-123");
         verify(capabilityMapper).toResponseDTO(anyList());
+    }
+
+    @Test
+    void deleteCapabilitiesByBootcamp_ShouldReturnNoContent() {
+        // Given
+        MockServerRequest request = MockServerRequest.builder()
+                .header(Constants.X_MESSAGE_ID, "msg-123")
+                .pathVariable("id", "1")
+                .build();
+
+        when(deleteCapabilitiesByBootcampServicePort.deleteCapabilitiesByBootcamp(1L, "msg-123"))
+                .thenReturn(Mono.empty());
+
+        // When & Then
+        StepVerifier.create(handler.deleteCapabilitiesByBootcamp(request))
+                .expectNextMatches(response -> response.statusCode() == HttpStatus.NO_CONTENT)
+                .verifyComplete();
+
+        verify(deleteCapabilitiesByBootcampServicePort).deleteCapabilitiesByBootcamp(1L, "msg-123");
+    }
+
+    @Test
+    void deleteCapabilitiesByBootcamp_ShouldReturnBadRequest_WhenInvalidIdFormat() {
+        // Given - ID con formato no numérico
+        MockServerRequest request = MockServerRequest.builder()
+                .header(Constants.X_MESSAGE_ID, "msg-123")
+                .pathVariable("id", "invalid-id")
+                .build();
+
+        // When & Then
+        StepVerifier.create(handler.deleteCapabilitiesByBootcamp(request))
+                .expectNextMatches(response -> response.statusCode() == HttpStatus.BAD_REQUEST)
+                .verifyComplete();
+
+        verifyNoInteractions(deleteCapabilitiesByBootcampServicePort);
+    }
+
+    @Test
+    void deleteCapabilitiesByBootcamp_ShouldReturnBadRequest_WhenBusinessException() {
+        // Given
+        MockServerRequest request = MockServerRequest.builder()
+                .header(Constants.X_MESSAGE_ID, "msg-123")
+                .pathVariable("id", "1")
+                .build();
+
+        when(deleteCapabilitiesByBootcampServicePort.deleteCapabilitiesByBootcamp(1L, "msg-123"))
+                .thenReturn(Mono.error(new BusinessException(TechnicalMessage.INVALID_PARAMETERS)));
+
+        // When & Then
+        StepVerifier.create(handler.deleteCapabilitiesByBootcamp(request))
+                .expectNextMatches(response -> response.statusCode() == HttpStatus.BAD_REQUEST)
+                .verifyComplete();
+
+        verify(deleteCapabilitiesByBootcampServicePort).deleteCapabilitiesByBootcamp(1L, "msg-123");
+    }
+
+    @Test
+    void deleteCapabilitiesByBootcamp_ShouldReturnInternalServerError_WhenUnexpectedException() {
+        // Given
+        MockServerRequest request = MockServerRequest.builder()
+                .header(Constants.X_MESSAGE_ID, "msg-123")
+                .pathVariable("id", "1")
+                .build();
+
+        when(deleteCapabilitiesByBootcampServicePort.deleteCapabilitiesByBootcamp(1L, "msg-123"))
+                .thenReturn(Mono.error(new RuntimeException("Database error")));
+
+        // When & Then
+        StepVerifier.create(handler.deleteCapabilitiesByBootcamp(request))
+                .expectNextMatches(response -> response.statusCode() == HttpStatus.INTERNAL_SERVER_ERROR)
+                .verifyComplete();
+
+        verify(deleteCapabilitiesByBootcampServicePort).deleteCapabilitiesByBootcamp(1L, "msg-123");
     }
 }
