@@ -26,20 +26,25 @@ public class DeleteCapabilitiesByBootcampUseCase implements DeleteCapabilitiesBy
                         return Mono.empty();
                     }
 
-                    return bootcampCapabilityPersistencePort.deleteByBootcampId(bootcampId)
-                            .then(
-                                    Flux.fromIterable(capabilityIds)
-                                            .flatMap(capabilityId ->
-                                                    // Check how many bootcamps currently use this capability
-                                                    bootcampCapabilityPersistencePort.countBootcampsByCapabilityId(capabilityId)
-                                                            .filter(count -> count == 0) // If the count is 0 (no other bootcamp uses it)
-                                                            .flatMap(count ->
-                                                                    // Eliminate the capability and its associated technologies
-                                                                    capabilityPersistencePort.deleteById(capabilityId)
-                                                                            .then(technologyGateway.deleteTechnologiesByCapability(capabilityId, messageId))
-                                                            )
-                                            )
-                                            .then()
+                    return Flux.fromIterable(capabilityIds)
+                            .flatMap(capabilityId ->
+                                            bootcampCapabilityPersistencePort.countBootcampsByCapabilityId(capabilityId)
+                                                    .filter(count -> count == 1)
+                                                    .map(c -> capabilityId)
+                            )
+                            .collectList()
+                            .flatMap(capabilityIdsToDelete ->
+                                 Flux.fromIterable(capabilityIdsToDelete)
+                                        .flatMap(capabilityId -> technologyGateway.deleteTechnologiesByCapability(capabilityId, messageId)
+                                        )
+                                        .then(
+                                                bootcampCapabilityPersistencePort.deleteByBootcampId(bootcampId)
+                                        )
+                                        .then(
+                                                Flux.fromIterable(capabilityIdsToDelete)
+                                                        .flatMap(capabilityPersistencePort::deleteById)
+                                                        .then()
+                                        )
                             );
                 });
     }
