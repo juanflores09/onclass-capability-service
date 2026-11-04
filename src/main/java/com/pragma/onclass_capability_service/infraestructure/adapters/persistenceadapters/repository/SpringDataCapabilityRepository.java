@@ -43,4 +43,11 @@ public interface SpringDataCapabilityRepository extends ReactiveCrudRepository<C
         WHERE cb.bootcamp_id IN (:bootcampIds)
     """)
     Flux<BootcampCapabilityProjection> findCapabilitiesByBootcampId(List<Long> bootcampIds);
+
+    @Query("SELECT SUM(c.technology_count) " +
+            "FROM capability c " +
+            "JOIN capability_bootcamp cb ON c.id = cb.capability_id " +
+            "WHERE cb.bootcamp_id = :bootcampId")
+    Mono<Integer> sumTechnologyCountByBootcampId(@Param("bootcampId") Long bootcampId);
+
 }

@@ -279,6 +279,13 @@ public class CapabilityHandler {
                 });
     }
 
+    public Mono<ServerResponse> getTotalTechnologies(ServerRequest request) {
+        Long bootcampId = Long.valueOf(request.pathVariable("bootcampId"));
+
+        return findCapabilitiesServicePort.getTotalTechnologiesByBootcampId(bootcampId)
+                .flatMap(total -> ServerResponse.ok().bodyValue(total));
+    }
+
     private Mono<ServerResponse> buildErrorResponse(HttpStatus httpStatus, String identifier,
                                                     TechnicalMessage error, List<ErrorDTO> errors) {
         return Mono.defer(() -> {

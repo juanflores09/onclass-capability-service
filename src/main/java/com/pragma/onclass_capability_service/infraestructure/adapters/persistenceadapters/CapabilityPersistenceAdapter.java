@@ -73,4 +73,10 @@ public class CapabilityPersistenceAdapter implements CapabilityPersistencePort {
     public Mono<Void> deleteById(Long id) {
         return repository.deleteById(id);
     }
+
+    @Override
+    public Mono<Integer> sumTechnologiesByBootcampId(Long bootcampId) {
+        return repository.sumTechnologyCountByBootcampId(bootcampId)
+                .defaultIfEmpty(0);
+    }
 }

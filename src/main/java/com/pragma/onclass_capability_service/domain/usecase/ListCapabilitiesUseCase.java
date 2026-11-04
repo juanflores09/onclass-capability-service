@@ -139,4 +139,9 @@ public class ListCapabilitiesUseCase implements FindCapabilitiesServicePort {
 
     }
 
+    @Override
+    public Mono<Integer> getTotalTechnologiesByBootcampId(Long bootcampId) {
+        return capabilityPersistencePort.sumTechnologiesByBootcampId(bootcampId);
+    }
+
 }

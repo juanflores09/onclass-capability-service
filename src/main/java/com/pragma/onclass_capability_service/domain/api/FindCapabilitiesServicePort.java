@@ -13,4 +13,5 @@ public interface FindCapabilitiesServicePort {
     Mono<Boolean> areAllCapabilitiesExist(List<Long> ids);
     Mono<PageResult<Capability>> listCapabilities(int page, int size, String sortBy, String direction, String message);
     Flux<CapabilityBootcamp> findCapabilitiesByBootcampIds(List<Long> ids, String messageId);
+    Mono<Integer> getTotalTechnologiesByBootcampId(Long bootcampId);
 }

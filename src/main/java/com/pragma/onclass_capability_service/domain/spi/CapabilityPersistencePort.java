@@ -16,4 +16,5 @@ public interface CapabilityPersistencePort {
     Flux<CapabilityBootcamp> findCapabilitiesByBootcampIds(List<Long> ids);
     Mono<Long> countTotal();
     Mono<Void> deleteById(Long id);
+    Mono<Integer> sumTechnologiesByBootcampId(Long bootcampId);
 }
