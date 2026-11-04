@@ -1,26 +1,25 @@
 openapi: 3.0.3
 info:
-  title: API de Capacidades
+  title: Capability Microservice API
+  description: Microservicio encargado de la gestión de capacidades, sus tecnologías asociadas y su vinculación con bootcamps.
   version: 1.0.0
-  description: Documentación de la API para la gestión de capacidades.
 
 servers:
   - url: http://localhost:8080
-    description: Servidor Local de Desarrollo
+    description: Servidor Local
 
 paths:
   /api/v1/capabilities:
     post:
       summary: Crear una nueva capacidad
-      description: Recibe los datos de una capacidad con sus tecnologías, valida duplicados y la registra en el sistema.
-      operationId: createCapability
+      description: Registra una capacidad validando sus parámetros y asegurando que no existan tecnologías duplicadas.
       parameters:
-        - in: header
-          name: x-message-id
-          required: true
+        - name: x-message-id
+          in: header
+          required: false
+          description: Identificador único de traza del mensaje
           schema:
             type: string
-          description: Identificador único del mensaje para trazabilidad
       requestBody:
         required: true
         content:
@@ -35,7 +34,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CapabilityResponseDTO'
         '400':
-          description: Parámetros inválidos, tecnologías duplicadas o error de negocio
+          description: Parámetros inválidos o tecnologías duplicadas
           content:
             application/json:
               schema:
@@ -48,90 +47,50 @@ paths:
                 $ref: '#/components/schemas/ApiResponseDTO'
 
     get:
-      summary: Listar capacidades de forma paginada
-      description: Obtiene una lista paginada de capacidades con opciones de ordenamiento.
-      operationId: listCapabilities
+      summary: Listar capacidades paginadas
+      description: Obtiene una lista paginada y ordenada de todas las capacidades con sus respectivas tecnologías.
       parameters:
-        - in: header
-          name: x-message-id
+        - name: x-message-id
+          in: header
           required: false
+          description: Identificador único de traza del mensaje
           schema:
             type: string
-          description: Identificador único del mensaje para trazabilidad
-        - in: query
-          name: page
+        - name: page
+          in: query
           required: false
+          description: Número de página (comienza en 0 por defecto)
           schema:
             type: integer
             default: 0
-          description: Número de página (inicia en 0)
-        - in: query
-          name: size
+        - name: size
+          in: query
           required: false
+          description: Cantidad de elementos por página (por defecto 10)
           schema:
             type: integer
             default: 10
-          description: Cantidad de elementos por página
-        - in: query
-          name: sortBy
+        - name: sortBy
+          in: query
           required: false
+          description: Campo por el cual ordenar (por defecto "name")
           schema:
             type: string
-            default: name
-          description: Campo por el cual ordenar
-        - in: query
-          name: direction
+            default: "name"
+        - name: direction
+          in: query
           required: false
+          description: Dirección del ordenamiento ("ASC" o "DESC")
           schema:
             type: string
-            enum: [ASC, DESC]
-            default: ASC
-          description: Dirección del ordenamiento
+            default: "ASC"
       responses:
         '200':
-          description: Lista de capacidades paginada obtenida exitosamente
+          description: Página de capacidades obtenida exitosamente
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CapabilityPageResponseDTO'
-        '400':
-          description: Parámetros de paginación o negocio inválidos
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseDTO'
-        '500':
-          description: Error interno del servidor
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseDTO'
-
-  /api/v1/capabilities/validate:
-    post:
-      summary: Validar existencia de múltiples capacidades
-      description: Comprueba si un conjunto de IDs de capacidades existen en la base de datos.
-      operationId: validateCapabilities
-      parameters:
-        - in: header
-          name: x-message-id
-          required: true
-          schema:
-            type: string
-          description: Identificador único del mensaje para trazabilidad
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CapabilityIdsRequestDTO'
-      responses:
-        '200':
-          description: Validación completada (retorna true o false)
-          content:
-            application/json:
-              schema:
-                type: boolean
+                $ref: '#/components/schemas/PageResponseDTO_Capability'
         '400':
           description: Parámetros inválidos
           content:
@@ -145,18 +104,50 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiResponseDTO'
 
-  /api/v1/capabilities/find:
+  /api/v1/capabilities/bootcamp-capabilities:
     post:
-      summary: Buscar capacidades por una lista de IDs
-      description: Retorna la lista completa de objetos de capacidades correspondientes a los IDs proporcionados.
-      operationId: findCapabilitiesByIds
+      summary: Asociar capacidades a un bootcamp
+      description: Guarda la relación entre un bootcamp y una lista de capacidades.
       parameters:
-        - in: header
-          name: x-message-id
-          required: true
+        - name: x-message-id
+          in: header
+          required: false
+          description: Identificador único de traza del mensaje
           schema:
             type: string
-          description: Identificador único del mensaje para trazabilidad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootcampCapabilitiesRequestDTO'
+      responses:
+        '201':
+          description: Relación guardada exitosamente (No Content / Creado)
+        '400':
+          description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDTO'
+        '500':
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDTO'
+
+  /api/v1/capabilities/find-by-bootcamps:
+    post:
+      summary: Buscar capacidades por IDs de bootcamps
+      description: Retorna una lista de capacidades asociadas a los IDs de bootcamps provistos.
+      parameters:
+        - name: x-message-id
+          in: header
+          required: false
+          description: Identificador único de traza del mensaje
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -165,7 +156,7 @@ paths:
               $ref: '#/components/schemas/CapabilityIdsRequestDTO'
       responses:
         '200':
-          description: Capacidades encontradas exitosamente
+          description: Lista de capacidades encontradas
           content:
             application/json:
               schema:
@@ -174,6 +165,40 @@ paths:
                   $ref: '#/components/schemas/CapabilityResponseDTO'
         '400':
           description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDTO'
+        '500':
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDTO'
+
+  /api/v1/capabilities/bootcamp/{id}:
+    delete:
+      summary: Eliminar capacidades y relaciones por ID de bootcamp
+      description: Limpia las relaciones de bootcamp-capacidades y elimina capacidades huérfanas propagando al servicio de tecnologías.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del bootcamp cuyas capacidades y relaciones se eliminarán
+          schema:
+            type: integer
+            format: int64
+        - name: x-message-id
+          in: header
+          required: false
+          description: Identificador único de traza del mensaje
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Capacidades y relaciones limpiadas exitosamente (No Content)
+        '400':
+          description: Formato de ID inválido o error de negocio
           content:
             application/json:
               schema:
@@ -196,10 +221,10 @@ components:
       properties:
         name:
           type: string
-          example: Backend Development
+          example: "Fundamentos de Backend"
         description:
           type: string
-          example: Desarrollo de microservicios con Spring Boot
+          example: "Capacidad para desarrollar servicios robustos del lado del servidor"
         technologies:
           type: array
           items:
@@ -216,28 +241,14 @@ components:
           example: 1
         name:
           type: string
-          example: Backend Development
+          example: "Fundamentos de Backend"
         description:
           type: string
-          example: Desarrollo de microservicios con Spring Boot
+          example: "Capacidad para desarrollar servicios robustos del lado del servidor"
         technologies:
           type: array
           items:
             $ref: '#/components/schemas/TechnologyResponseDTO'
-
-    Technology:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-          example: 1
-        name:
-          type: string
-          example: Spring Boot
-        description:
-          type: string
-          example: Framework reactivo
 
     TechnologyResponseDTO:
       type: object
@@ -245,10 +256,30 @@ components:
         id:
           type: integer
           format: int64
-          example: 1
+          example: 10
         name:
           type: string
-          example: Spring Boot
+          example: "Java"
+        description:
+          type: string
+          example: "Lenguaje de programación orientado a objetos"
+
+    BootcampCapabilitiesRequestDTO:
+      type: object
+      required:
+        - bootcampId
+        - capabilityIds
+      properties:
+        bootcampId:
+          type: integer
+          format: int64
+          example: 5
+        capabilityIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          example: [1, 2]
 
     CapabilityIdsRequestDTO:
       type: object
@@ -260,15 +291,15 @@ components:
           items:
             type: integer
             format: int64
-          example: [1, 2]
+          example: [1, 2, 3]
 
-    CapabilityPageResponseDTO:
+    PageResponseDTO_Capability:
       type: object
       properties:
-        pageNumber:
+        page:
           type: integer
           example: 1
-        pageSize:
+        size:
           type: integer
           example: 10
         totalElements:
@@ -283,33 +314,32 @@ components:
           items:
             $ref: '#/components/schemas/CapabilityResponseDTO'
 
-    ErrorDTO:
-      type: object
-      properties:
-        code:
-          type: string
-          example: "ERR_01"
-        message:
-          type: string
-          example: "Las tecnologías no pueden estar duplicadas"
-
     ApiResponseDTO:
       type: object
       properties:
         code:
           type: string
-          example: "400"
+          example: "INVALID_PARAMETERS"
         message:
           type: string
-          example: "Bad Request"
+          example: "The provided parameters are invalid."
         identifier:
           type: string
-          example: "msg-987654"
+          example: "msg-uuid-1234"
         date:
           type: string
-          format: date-time
-          example: "2026-10-28T16:00:00Z"
+          example: "2026-11-02T16:30:00Z"
         errors:
           type: array
           items:
             $ref: '#/components/schemas/ErrorDTO'
+
+    ErrorDTO:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "INVALID_PARAMETERS"
+        message:
+          type: string
+          example: "El campo name no puede estar vacío"

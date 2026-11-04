@@ -47,7 +47,7 @@ class DeleteCapabilitiesByBootcampUseCaseTest {
                 .thenReturn(Mono.empty());
 
         when(bootcampCapabilityPersistencePort.countBootcampsByCapabilityId(capabilityId))
-                .thenReturn(Mono.just(0L)); // Ningún otro bootcamp la usa
+                .thenReturn(Mono.just(1L)); // Ningún otro bootcamp la usa
 
         when(capabilityPersistencePort.deleteById(capabilityId))
                 .thenReturn(Mono.empty());
